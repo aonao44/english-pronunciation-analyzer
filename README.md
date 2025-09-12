@@ -1,50 +1,225 @@
-# Welcome to your Expo app 👋
+# 英語発音解析システム集
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+英語学習者の**実際の発音**をカタカナで表示する教育支援ツール群です。従来の音声認識システムが「正しい英語」に補正してしまう問題を解決し、学習者が実際に発音した音をそのまま可視化します。
 
-## Get started
+## 🎯 プロジェクト目的
 
-1. Install dependencies
+**従来の課題:**
+- Whisperなどの音声認識AIは発音を「正しい英語」に自動補正
+- 「got to」→「ガタ」と発音しても「got to」と表示される
+- 英語教師が生徒の実際の発音を正確に把握できない
 
-   ```bash
-   npm install
-   ```
+**解決アプローチ:**
+- 複数の言語モード（英語・日本語・自動検出）で同時解析
+- MeCabによる高精度な漢字→カタカナ変換
+- 辞書ベース・音韻ベース・発音記号ベースなど多角的なアプローチ
 
-2. Start the app
+## 📱 システム一覧
 
-   ```bash
-   npx expo start
-   ```
+### 1. シンプル版 (`app_simple.py`) - Port 7861
+**基本的なWhisper + 辞書変換**
+- 軽量なWhisper tinyモデル使用
+- パターンマッチングによるカタカナ変換
+- 最も軽く動作する基本版
 
-In the output, you'll find options to open the app in a
+### 2. 最適化版 (`app_optimized.py`) - Port 7863  
+**実用性を重視した高速版**
+- 頻出発音パターンを重点対応
+- 「got to」→「ガラ」など実際の縮約発音に対応
+- 3-5秒の高速処理を実現
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+### 3. 高度版 (`app_advanced.py`) - Port 7862
+**包括的な発音解析システム**
+- 複数の変換手法を組み合わせ
+- 詳細な発音情報を表示
+- 教育現場での詳細分析に対応
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+### 4. 最終版 (`app_final.py`) - Port 7864
+**日本人学習者特化版**
+- 日本人が間違えやすい発音パターンに特化
+- 包括的な発音データベース
+- 教師向け高機能版
 
-## Get a fresh project
+### 5. 発音記号版 (`app_phonetic.py`) - Port 7865
+**発音記号ベース解析**
+- IPA国際音声記号での表示
+- 発音辞書との連携
+- 学術的な発音分析
 
-When you're ready, run:
+### 6. 修正版 (`app_phonetic_fixed.py`) - Port 7866
+**シンプル辞書ベース**
+- 500語以上の直接マッピング辞書
+- 確実な動作を重視
+- 実用的なカタカナ変換
 
+### 7. 発音記号表示版 (`app_phonetic_symbols.py`) - Port 7867
+**IPA + カタカナ同時表示**
+- 国際音声記号とカタカナを両方表示
+- 正確性と直感性を両立
+- 発音指導に最適
+
+### 8. 日本語モード実験版 (`app_japanese_mode.py`) - Port 7868
+**3言語モード比較実験**
+- 英語・日本語・自動検出の3モードで同時解析
+- 補正率の違いを可視化
+- 言語モード別の特性分析
+
+### 9. MeCab強化版 (`app_mecab_enhanced.py`) - Port 7869 ⭐**推奨**
+**最新の高精度版**
+- MeCabによる漢字→カタカナの正確な変換
+- Whisper精度向上（一貫性改善）
+- 比較機能付きの最も完成度の高いバージョン
+
+## 🚀 クイックスタート
+
+### 必要な環境
 ```bash
-npm run reset-project
+# Python依存関係
+pip3 install gradio whisper numpy tempfile torch
+pip3 install mecab-python3 unidic-lite  # MeCab強化版用
+
+# 基本的なシステム
+python3 -m venv venv
+source venv/bin/activate  # macOS/Linux
+# または
+venv\\Scripts\\activate  # Windows
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### 起動方法
+```bash
+# 推奨: MeCab強化版
+python3 app_mecab_enhanced.py
+# → http://localhost:7869
 
-## Learn more
+# または他のバージョン
+python3 app_simple.py        # → http://localhost:7861
+python3 app_optimized.py     # → http://localhost:7863
+# 他のバージョンも同様
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+## 🔬 技術的特徴
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### Whisper設定の最適化
+- **言語モード**: 英語 vs 日本語 vs 自動検出の比較
+- **温度パラメータ**: 一貫性重視（0.0）vs 多様性重視（0.9）
+- **ビームサーチ**: 探索幅を調整して精度向上
+- **前文脈排除**: `condition_on_previous_text=False`で独立性確保
 
-## Join the community
+### カタカナ変換手法
+1. **パターンマッチング**: 頻出フレーズの直接変換
+2. **辞書ベース**: 500語以上の単語→カタカナマッピング
+3. **MeCab形態素解析**: 漢字→読み→カタカナの高精度変換
+4. **音韻ルール**: 英語音素→カタカナの基本変換
 
-Join our community of developers creating universal apps.
+### 精度向上技術
+- **一貫性確保**: 同じ音声で毎回同じ結果
+- **補正抑制**: 「正しい英語」への自動補正を最小化
+- **多角的検証**: 複数手法の結果を比較表示
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## 📊 実験結果と知見
+
+### 言語モード別特性
+- **英語モード**: 70-80%が正しい英語に補正される
+- **日本語モード**: 実音に近いが漢字変換が課題
+- **自動検出**: 言語判定によって結果が変動
+
+### 変換精度
+- **MeCab版**: 漢字→カタカナの正確な変換（推奨）
+- **辞書版**: 既知単語は高精度、未知語は基本変換
+- **音韻版**: 1文字変換による精度低下問題
+
+## 🎓 教育現場での活用
+
+### 英語教師向け
+- 生徒の実際の発音を正確に把握
+- 「got to」→「ガタ」のような縮約発音の可視化
+- 発音指導の客観的データとして活用
+
+### 学習者向け
+- 自分の発音の客観視
+- 目標発音との差異の認識
+- 継続的な発音改善のモニタリング
+
+### 使用場面
+- 個別発音指導
+- 発音テストの評価
+- 自習用発音チェック
+- 発音研究・分析
+
+## 📝 開発履歴
+
+### 技術的試行錯誤
+1. **Expo React Native**: Web Speech APIの限界により断念
+2. **Phonemizer**: 依存関係の複雑さで断念
+3. **MFA (Montreal Forced Alignment)**: インストール困難で断念
+4. **複雑な音韻処理**: 精度と実装複雑さのバランス問題
+5. **MeCab導入**: 最終的に最も実用的な解決策
+
+### 主要な課題と解決策
+- **補正問題**: 複数言語モードでの比較分析
+- **一貫性問題**: temperature=0.0と探索パラメータ調整
+- **カタカナ変換**: MeCabによる形態素解析の活用
+- **実用性**: シンプルさと精度のバランス
+
+## 🔧 カスタマイズ
+
+### 発音パターンの追加
+```python
+# app_mecab_enhanced.pyの辞書部分を編集
+english_to_katakana = {
+    'your_word': 'ヨウアワード',  # 新しい単語を追加
+    # ...
+}
+```
+
+### Whisperパラメータ調整
+```python
+result = model.transcribe(
+    audio_file,
+    temperature=0.0,      # 0.0-1.0: 低いほど一貫性重視
+    best_of=5,           # 候補数: 多いほど高精度
+    beam_size=5,         # 探索幅: 多いほど高精度
+)
+```
+
+## 📋 今後の改善予定
+
+### 短期目標
+- [ ] より多くの発音パターンの対応
+- [ ] UIの使いやすさ改善
+- [ ] 処理速度の最適化
+
+### 中期目標
+- [ ] 事前入力テキストとの音韻マッチング機能
+- [ ] 音声の波形解析連携
+- [ ] 複数話者への対応
+
+### 長期目標
+- [ ] AIによる文脈理解の導入
+- [ ] リアルタイム発音フィードバック
+- [ ] モバイルアプリ化
+
+## 🤝 貢献
+
+このプロジェクトは英語教育の改善を目指しています。バグ報告、機能提案、コード貢献を歓迎します。
+
+### 報告・提案
+- バグ報告: Issues で詳細をお知らせください
+- 機能提案: 教育現場での具体的な使用例と共にご提案ください
+- 発音パターン追加: 実際に必要な発音例をお知らせください
+
+## 📄 ライセンス
+
+MIT License - 教育目的での自由な利用と改変を許可
+
+## 👥 クレジット
+
+- **Whisper**: OpenAI の高精度音声認識モデル
+- **MeCab**: 形態素解析による高精度な読み変換
+- **Gradio**: 直感的なWebUIの提供
+
+---
+
+**推奨バージョン**: `app_mecab_enhanced.py` (Port 7869)
+
+このバージョンが最も精度が高く、実用的です。まずはこちらをお試しください。
