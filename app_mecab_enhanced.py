@@ -210,18 +210,6 @@ def clean_katakana_text(text: str) -> str:
     
     return cleaned if cleaned else "？？？"
 
-def clean_japanese_text(text: str) -> str:
-    """従来の日本語テキストクリーンアップ（フォールバック用）"""
-    if not text:
-        return "？？？"
-    
-    # カタカナ・ひらがな・記号のみを抽出
-    cleaned = re.sub(r'[^\u3040-\u309F\u30A0-\u30FF\u3000-\u303F\s・ー]', '', text)
-    
-    # 連続する空白を1つに
-    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
-    
-    return cleaned if cleaned else "？？？"
 
 def process_mecab_enhanced_pronunciation(audio_file):
     """MeCab強化版発音解析のメイン処理"""
@@ -238,20 +226,16 @@ def process_mecab_enhanced_pronunciation(audio_file):
         # Step 3: MeCabで漢字→カタカナ変換
         mecab_result = convert_kanji_to_katakana_mecab(japanese_result)
         
-        # Step 4: 従来のクリーンアップも実行（比較用）
-        simple_clean = clean_japanese_text(japanese_result)
-        
         return (
             "✅ MeCab強化版解析完了",
             english_result,
             japanese_result,
-            mecab_result,
-            simple_clean
+            mecab_result
         )
         
     except Exception as e:
         print(f"❌ 処理エラー: {e}")
-        return f"❌ エラー: {str(e)}", "", "", "", ""
+        return f"❌ エラー: {str(e)}", "", "", ""
 
 # MeCab強化版Gradioインターフェース
 def create_mecab_enhanced_app():
@@ -274,10 +258,6 @@ def create_mecab_enhanced_app():
             border: 3px solid #ff9800; 
             font-weight: bold;
             font-size: 20px;
-        }
-        .simple-result { 
-            background: linear-gradient(135deg, #e3f2fd, #bbdefb); 
-            border: 2px solid #2196f3; 
         }
         .status-box { 
             background: linear-gradient(135deg, #fce4ec, #f8bbd9); 
@@ -366,18 +346,12 @@ def create_mecab_enhanced_app():
                     lines=3
                 )
                 
-                simple_output = gr.Textbox(
-                    label="📝 従来版クリーンアップ（比較用）",
-                    placeholder="従来の漢字除去のみ",
-                    elem_classes=["simple-result", "result-box"],
-                    lines=2
-                )
             
             # イベントハンドリング
             analyze_btn.click(
                 process_mecab_enhanced_pronunciation,
                 inputs=[audio_input],
-                outputs=[status_output, english_output, japanese_output, mecab_output, simple_output]
+                outputs=[status_output, english_output, japanese_output, mecab_output]
             )
             
             gr.Markdown("""
