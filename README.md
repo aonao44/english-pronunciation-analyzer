@@ -4,22 +4,28 @@
 
 ## 使い方
 
-### 1. 環境準備
+### 1. リポジトリを取得
+```bash
+git clone https://github.com/aonao44/english-pronunciation-analyzer.git
+cd english-pronunciation-analyzer
+```
+
+### 2. 環境準備
 ```bash
 pip3 install gradio whisper torch mecab-python3 unidic-lite
 ```
 
-### 2. システム起動
+### 3. システム起動
 ```bash
 python3 app_mecab_enhanced.py
 ```
 
-### 3. ブラウザでアクセス
+### 4. ブラウザでアクセス
 ```
 http://localhost:7869
 ```
 
-### 4. 操作方法
+### 5. 操作方法
 1. マイクボタンをクリックして英語を録音
 2. 「MeCab強化解析開始」をクリック  
 3. 結果確認：MeCab変換でカタカナ表示
