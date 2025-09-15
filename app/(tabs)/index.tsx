@@ -238,7 +238,7 @@ export default function HomeScreen() {
           onPress={isRecording ? stopRecording : startRecording}
         >
           <ThemedText style={styles.recordButtonText}>
-            {isRecording ? '停止' : '録音開始'}
+            録音を再生 🔊
           </ThemedText>
         </TouchableOpacity>
         
@@ -246,7 +246,7 @@ export default function HomeScreen() {
           <View style={styles.statusContainer}>
             <ThemedText style={styles.timer}>
               {recordingDuration}秒 / 30秒 🎤
-            </ThemedText>
+            {isProcessingWhisper ? '解析中... ⏳' : '解析 🎯'}
           </View>
         )}
       </View>
