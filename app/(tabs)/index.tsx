@@ -1,170 +1,62 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { StyleSheet, View, TouchableOpacity, Alert, Platform } from 'react-native';
 import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-
-// Web Speech APIのタイプ定義（Webのみ）
-declare global {
-  interface Window {
-    webkitSpeechRecognition: any;
-    SpeechRecognition: any;
-  }
-}
 
 export default function HomeScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [recordingUri, setRecordingUri] = useState<string | null>(null);
-  const [savedRecordings, setSavedRecordings] = useState<string[]>([]);
   const [transcription, setTranscription] = useState('');
-  const [rawAlternatives, setRawAlternatives] = useState<string[]>([]);
-  const [isListening, setIsListening] = useState(false);
-  const [speechSupported, setSpeechSupported] = useState(false);
   const [whisperResult, setWhisperResult] = useState<{raw: string, katakana: string} | null>(null);
   const [isProcessingWhisper, setIsProcessingWhisper] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
-    if (Platform.OS === 'web') {
-      // Webプラットフォーム用の確認
-      const supported = typeof window !== 'undefined' && 
-        ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window);
-      setSpeechSupported(supported);
-      
-      if (supported) {
-        setupWebSpeechRecognition();
-      }
-    } else {
-      // iOS/Androidでは現在のExpo Goでは制限があるため、Development Buildが必要
-      setSpeechSupported(false);
-      console.log('iOS/Android speech recognition requires Development Build');
-    }
+    // 音声録音の権限を事前に確認
+    checkAudioPermissions();
   }, []);
 
-  const selectRawCandidate = (alternatives: string[]): string => {
-    if (alternatives.length === 0) return '';
-    if (alternatives.length === 1) return alternatives[0];
-
-    // より「生」の発音に近い候補を選択するヒューリスティック
-    const scored = alternatives.map((alt, index) => {
-      let score = 0;
-      
-      // 後の候補ほど信頼度が低い（＝補正が少ない可能性）
-      score += (alternatives.length - index) * 10;
-      
-      // 短い単語は発音が不完全な可能性
-      if (alt.length < alternatives[0].length) score += 20;
-      
-      // 一般的でない単語・音の組み合わせを優先
-      const commonWords = ['hello', 'thank', 'you', 'water', 'good', 'morning'];
-      const isCommon = commonWords.some(word => 
-        alt.toLowerCase().includes(word.toLowerCase())
-      );
-      if (!isCommon) score += 15;
-      
-      // より多くの子音クラスターがある（発音の特徴を保持）
-      const consonantClusters = alt.match(/[bcdfghjklmnpqrstvwxyz]{2,}/gi) || [];
-      score += consonantClusters.length * 5;
-      
-      return { alt, score, index };
-    });
-    
-    // 最高スコアの候補を選択
-    scored.sort((a, b) => b.score - a.score);
-    console.log('Candidate scores:', scored);
-    
-    return scored[0].alt;
-  };
-
-  const setupWebSpeechRecognition = () => {
-    const SpeechRecognitionAPI = window.webkitSpeechRecognition || window.SpeechRecognition;
-    if (!SpeechRecognitionAPI) return;
-
-    const recognition = new SpeechRecognitionAPI();
-    
-    // 生の発音により近づける設定
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = 'en'; // より汎用的な設定
-    recognition.maxAlternatives = 5; // 複数の候補を取得
-    recognition.serviceURI = ''; // デフォルトサービスを使用
-
-    recognition.onstart = () => {
-      setIsListening(true);
-      console.log('Web speech recognition started');
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-      console.log('Web speech recognition ended');
-    };
-
-    recognition.onresult = (event: any) => {
-      if (event.results.length > 0) {
-        const lastResult = event.results[event.results.length - 1];
-        
-        // 全ての代替候補を取得
-        const alternatives: string[] = [];
-        for (let i = 0; i < lastResult.length && i < 5; i++) {
-          if (lastResult[i]) {
-            alternatives.push(lastResult[i].transcript);
-          }
-        }
-        
-        console.log('All alternatives:', alternatives);
-        setRawAlternatives(alternatives);
-        
-        // より「生」に近い候補を選択するアルゴリズム
-        const selectedTranscript = selectRawCandidate(alternatives);
-        console.log('Selected raw transcript:', selectedTranscript);
-        
-        const katakanaResult = '？？？（Web Speech API結果は表示されません）？？？';
-        setTranscription(katakanaResult);
+  const checkAudioPermissions = async () => {
+    try {
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('権限が必要です', 'マイクの使用許可が必要です。設定から許可してください。');
       }
-    };
-
-    recognition.onerror = (event: any) => {
-      console.error('Web speech recognition error:', event.error);
-      setIsListening(false);
-    };
-
-    recognitionRef.current = recognition;
+    } catch (error) {
+      console.error('Permission check error:', error);
+    }
   };
 
   const startRecording = async () => {
     try {
-      console.log('Requesting permissions..');
-      await Audio.requestPermissionsAsync();
+      console.log('録音を開始します...');
+      
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('エラー', 'マイクの使用許可が必要です');
+        return;
+      }
 
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
 
-      console.log('Starting recording..');
       const { recording } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
       setRecording(recording);
       setIsRecording(true);
       setTranscription('');
-      setRawAlternatives([]);
       setRecordingUri(null);
+      setWhisperResult(null);
 
-      // 音声認識開始（Webのみ）
-      if (speechSupported && Platform.OS === 'web' && recognitionRef.current) {
-        try {
-          recognitionRef.current.start();
-        } catch (error) {
-          console.error('Error starting web recognition:', error);
-        }
-      }
-
-      console.log('Recording started');
+      console.log('録音開始');
 
       timerRef.current = setInterval(() => {
         setRecordingDuration(prev => {
@@ -176,26 +68,17 @@ export default function HomeScreen() {
         });
       }, 1000);
     } catch (err) {
-      console.error('Failed to start recording', err);
+      console.error('録音開始に失敗しました', err);
       Alert.alert('録音エラー', '録音を開始できませんでした。権限を確認してください。');
     }
   };
 
   const stopRecording = async () => {
-    console.log('Stopping recording..');
+    console.log('録音を停止します...');
     
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
-    }
-
-    // 音声認識停止（Webのみ）
-    if (speechSupported && Platform.OS === 'web' && recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (error) {
-        console.error('Error stopping web recognition:', error);
-      }
     }
 
     if (!recording) {
@@ -206,20 +89,10 @@ export default function HomeScreen() {
       await recording.stopAndUnloadAsync();
       const uri = recording.getURI();
       setRecordingUri(uri);
-      console.log('Recording stopped and stored at', uri);
-      
-      // 音声認識が利用できない、または何も認識されなかった場合
-      if (!speechSupported) {
-        if (Platform.OS === 'web') {
-          setTranscription('？？？（ブラウザが音声認識をサポートしていません）？？？');
-        } else {
-          setTranscription('？？？（iOS/Androidでは Development Build が必要です）？？？');
-        }
-      } else if (!transcription) {
-        setTranscription('？？？（音声が認識されませんでした）？？？');
-      }
+      console.log('録音完了:', uri);
+      setTranscription('録音が完了しました。解析ボタンを押してください。');
     } catch (error) {
-      console.error('Error stopping recording:', error);
+      console.error('録音停止エラー:', error);
     }
 
     setRecording(null);
@@ -237,11 +110,10 @@ export default function HomeScreen() {
       const { sound } = await Audio.Sound.createAsync({ uri: recordingUri });
       await sound.playAsync();
     } catch (error) {
-      console.error('Error playing recording:', error);
+      console.error('再生エラー:', error);
       Alert.alert('エラー', '録音の再生に失敗しました');
     }
   };
-
 
   const processWithWhisper = async () => {
     console.log('解析ボタンが押されました');
@@ -260,9 +132,32 @@ export default function HomeScreen() {
       // Hugging Face Spaces APIエンドポイント
       const API_URL = 'https://naonta44-whisper-pronunciation-api.hf.space/api/predict';
       
-      // 音声ファイルを取得
-      const response = await fetch(recordingUri);
-      const audioBlob = await response.blob();
+      let audioBlob;
+      
+      if (Platform.OS === 'web') {
+        // Web環境での処理
+        const response = await fetch(recordingUri);
+        audioBlob = await response.blob();
+      } else {
+        // React Native環境での処理
+        const fileInfo = await FileSystem.getInfoAsync(recordingUri);
+        if (!fileInfo.exists) {
+          throw new Error('録音ファイルが見つかりません');
+        }
+        
+        const base64 = await FileSystem.readAsStringAsync(recordingUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        
+        // Base64をBlobに変換
+        const byteCharacters = atob(base64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        audioBlob = new Blob([byteArray], { type: 'audio/m4a' });
+      }
       
       // FormDataを作成
       const formData = new FormData();
@@ -328,20 +223,11 @@ export default function HomeScreen() {
     }
   };
 
-  const createDevelopmentBuild = () => {
-    Alert.alert(
-      'Development Build作成方法', 
-      'iOSで音声認識を使用するには Development Build が必要です。\n\n手順:\n1. npx expo install expo-dev-client\n2. npx expo run:ios\n3. 実機またはシミュレーターで実行',
-      [{ text: 'OK' }]
-    );
-  };
-
   return (
     <ThemedView style={styles.container}>
       <ThemedText type="title" style={styles.title}>
         英語発音文字起こし
       </ThemedText>
-      
       
       <View style={styles.recordingContainer}>
         <TouchableOpacity
@@ -361,16 +247,9 @@ export default function HomeScreen() {
             <ThemedText style={styles.timer}>
               {recordingDuration}秒 / 30秒 🎤
             </ThemedText>
-            {speechSupported && isListening && (
-              <ThemedText style={styles.listeningStatus}>
-                音声認識中... 🔊
-              </ThemedText>
-            )}
           </View>
         )}
       </View>
-
-
 
       {recordingUri && (
         <View style={styles.actionButtonsContainer}>
@@ -417,32 +296,17 @@ export default function HomeScreen() {
         </View>
       )}
 
-      <View style={styles.supportInfo}>
-        <ThemedText style={styles.supportText}>
-          音声認識: {speechSupported ? '✅ 利用可能' : '❌ 利用不可'}
-        </ThemedText>
-        <ThemedText style={styles.supportText}>
-          プラットフォーム: {Platform.OS}
-        </ThemedText>
-        {!speechSupported && Platform.OS !== 'web' && (
-          <TouchableOpacity style={styles.helpButton} onPress={createDevelopmentBuild}>
-            <ThemedText style={styles.helpButtonText}>
-              iOS対応方法を見る
-            </ThemedText>
-          </TouchableOpacity>
-        )}
-      </View>
+      {transcription && (
+        <View style={styles.transcriptionContainer}>
+          <ThemedText style={styles.transcriptionText}>
+            {transcription}
+          </ThemedText>
+        </View>
+      )}
 
       <ThemedText style={styles.instruction}>
         録音ボタンを押して英語を話してください。
-        {speechSupported ? 
-          '実際の発音がそのままカタカナで表示されます（補正なし）。' :
-          Platform.OS === 'web' ? 
-            'ブラウザが音声認識をサポートしていません。' :
-            'iOSでの音声認識には Development Build が必要です。'
-        }
-        {'\n\n'}
-        {speechSupported && '※ 正確でない発音も忠実に再現されます。'}
+        録音後に解析ボタンを押すと、実際の発音がカタカナで表示されます。
       </ThemedText>
     </ThemedView>
   );
@@ -486,12 +350,6 @@ const styles = StyleSheet.create({
     color: '#333333',
     fontWeight: '500',
   },
-  listeningStatus: {
-    fontSize: 14,
-    color: '#4CAF50',
-    marginTop: 5,
-    fontWeight: '500',
-  },
   actionButtonsContainer: {
     flexDirection: 'row',
     gap: 10,
@@ -526,26 +384,17 @@ const styles = StyleSheet.create({
   processingButton: {
     backgroundColor: '#999999',
   },
-  supportInfo: {
+  transcriptionContainer: {
     marginBottom: 20,
-    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+    width: '100%',
   },
-  supportText: {
-    fontSize: 12,
-    color: '#888888',
-    marginBottom: 2,
-  },
-  helpButton: {
-    backgroundColor: '#FF9800',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 4,
-    marginTop: 8,
-  },
-  helpButtonText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: 'bold',
+  transcriptionText: {
+    fontSize: 14,
+    color: '#333333',
+    textAlign: 'center',
   },
   instruction: {
     textAlign: 'center',
@@ -568,52 +417,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 16,
     color: '#2E7D32',
-  },
-  comparisonRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-    gap: 10,
-  },
-  comparisonItem: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  comparisonLabel: {
-    fontSize: 12,
-    color: '#666666',
-    marginBottom: 6,
-    fontWeight: '500',
-  },
-  comparisonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#000000',
-    minHeight: 20,
-  },
-  whisperRawContainer: {
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: '#fff3e0',
-    borderWidth: 1,
-    borderColor: '#ffb74d',
-    marginBottom: 12,
-  },
-  whisperRawLabel: {
-    fontSize: 12,
-    color: '#e65100',
-    marginBottom: 4,
-    fontWeight: '500',
-  },
-  whisperRawText: {
-    fontSize: 14,
-    color: '#bf360c',
-    fontFamily: 'monospace',
-    fontStyle: 'italic',
   },
   clearComparisonButton: {
     backgroundColor: '#ff5722',
