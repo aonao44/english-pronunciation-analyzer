@@ -250,6 +250,8 @@ export default function HomeScreen() {
           </View>
         )}
       </View>
+        )
+        }
 
       {recordingUri && (
         <View style={styles.actionButtonsContainer}>
